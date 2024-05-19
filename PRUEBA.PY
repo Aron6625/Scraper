@@ -18,12 +18,32 @@ uri = "https://clasificados.lostiempos.com/inmuebles"
 
 # Conexión a la base de datos PostgreSQL
 conn = psycopg2.connect(
-    dbname="testbig data",
+    dbname="testinBig",
     user="postgres",
-    password="34353435",
+    password="8776959",
     host="localhost"
 )
-table = 'datos'
+
+# Crear un cursor
+cursor = conn.cursor()
+
+# Crear la tabla clasificados si no existe
+create_table_query = '''
+CREATE TABLE IF NOT EXISTS clasificados (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    price TEXT NOT NULL,
+    publish_date TEXT NOT NULL
+);
+'''
+cursor.execute(create_table_query)
+
+# Confirmar cambios
+conn.commit()
+
+# Cerrar el cursor
+cursor.close()
 
 # Función para configurar y obtener el navegador
 def config():
@@ -32,14 +52,14 @@ def config():
     driver.get(uri)
     return driver
 
-urls = 3;
+urls = 3
 
 # Función para capturar y guardar los datos en PostgreSQL
 def capture_and_save_data():
     driver = config()
     
     for i in range(0, 3):
-        driver.get(f"https://clasificados.lostiempos.com/inmuebles?page={i}");
+        driver.get(f"https://clasificados.lostiempos.com/inmuebles?page={i}")
 
         time.sleep(2)
         
@@ -53,13 +73,13 @@ def capture_and_save_data():
             try:
                 price = cart.find_element(By.CLASS_NAME, "price").text
             except:
-                price = '$us 0';
+                price = '$us 0'
 
             publish_date = cart.find_element(By.CLASS_NAME, "publish-date")
 
             # Verificar si el registro ya existe en la base de datos
             cursor.execute(
-                f'SELECT * FROM clasificados WHERE title = %s AND body = %s AND price = %s AND publish_date = %s',
+                'SELECT * FROM clasificados WHERE title = %s AND body = %s AND price = %s AND publish_date = %s',
                 (title.text, body.text, price, publish_date.text)
             )
             existing_record = cursor.fetchone()
@@ -67,7 +87,7 @@ def capture_and_save_data():
             if not existing_record:
                 # Insertar el nuevo registro solo si no existe en la base de datos
                 cursor.execute(
-                    f'INSERT INTO clasificados (title, body, price, publish_date) VALUES (%s, %s, %s, %s)',
+                    'INSERT INTO clasificados (title, body, price, publish_date) VALUES (%s, %s, %s, %s)',
                     (title.text, body.text, price, publish_date.text)
                 )
     
