@@ -17,7 +17,7 @@ def extract_news(uri):
 
     if soup:
         try:
-            main = soup.find('main')
+            main = soup.select_one('.content-column')
             if not main:
                 raise AttributeError("No se encontró el elemento principal con la clase .content-column")
 
