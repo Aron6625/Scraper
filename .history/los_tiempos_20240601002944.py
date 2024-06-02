@@ -5,6 +5,35 @@ import csv
 from datetime import datetime
 import re
 
+# Conexión a la base de datos PostgreSQL
+conn = psycopg2.connect(
+    dbname="testinBig",
+    user="postgres",
+    password="8776959",
+    host="localhost"
+)
+
+cur = conn.cursor()
+
+
+# Crear la tabla noticias si no existe
+create_table_query = '''
+CREATE TABLE IF NOT EXISTS noticias (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    article_url TEXT NOT NULL,
+    author_name TEXT,
+    content_time DATE,
+    section TEXT NOT NULL
+    revistas VARCHAR(255)
+
+);
+'''
+cur.execute(create_table_query)
+conn.commit()
+
 url_website = "https://www.lostiempos.com/ultimas-noticias"
 
 def get_page_content(url):
@@ -35,8 +64,7 @@ def extract_news(uri):
             date_publish_str = article.find('div', class_='date-publish').get_text(strip=True)
             print(date_publish_str)
             
-            date_publish = extract_date(date_publish_str)
-            
+            # date_publish = convert_to_date(date_publish_str)
             author_element = article.find('div', class_='autor').select_one('.field-item a')
             author = author_element.text if author_element else None
 
@@ -103,9 +131,11 @@ def scrape_news(start_url,  csv_filename):
 
 def extract_date(date_str):
     try:
+        # Usar expresiones regulares para extraer la parte de la fecha
         date_match = re.search(r'\d{2}/\d{2}/\d{4}', date_str)
         if date_match:
             date_extracted = date_match.group(0)
+            # Convertir la fecha extraída al formato DATE
             return datetime.strptime(date_extracted, '%d/%m/%Y').date()
         else:
             print("No se encontró una fecha en la cadena proporcionada.")
@@ -113,7 +143,6 @@ def extract_date(date_str):
     except ValueError as e:
         print(f"Error al convertir la fecha: {e}")
         return None
-    
 def write_to_csv(news_data, csv_filename):
     fieldnames = ['title', 'section', 'image_url','article_url', 'content_time', 'author_name', 'description']
 
@@ -124,38 +153,10 @@ def write_to_csv(news_data, csv_filename):
             writer.writerow(news)
 
 def save_article(news_data):
-    
-    conn = psycopg2.connect(
-        dbname="testinBig",
-        user="postgres",
-        password="8776959",
-        host="localhost"
-    )
-        
-    cur = conn.cursor()
-
-    # Crear la tabla noticias si no existe
-    create_table_query = '''
-        CREATE TABLE IF NOT EXISTS noticias (
-            id SERIAL PRIMARY KEY,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            image_url TEXT NOT NULL,
-            article_url TEXT NOT NULL,
-            author_name TEXT,
-            content_time DATE,
-            section TEXT NOT NULL
-            revistas VARCHAR(255)
-
-        );
-        '''
-    cur.execute(create_table_query)
-    conn.commit()
-        
     insert_query = '''
-        INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section, revistas)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        '''
+    INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section, revistas)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    '''
     for news in news_data:
         cur.execute(insert_query, (
             news['title'],
@@ -168,14 +169,10 @@ def save_article(news_data):
             'Los Tiempos' 
         ))
     conn.commit()
-    print("Conexión exitosa")
-        
-        
-    cur.close()
-    conn.close()
-    
-    
+
+
 #inicio de scraping
 scrape_news(url_website, 'los_tiempos_news_1.csv')
 
-
+cur.close()
+conn.close()

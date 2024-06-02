@@ -126,11 +126,11 @@ def write_to_csv(news_data, csv_filename):
 def save_article(news_data):
     
     conn = psycopg2.connect(
-        dbname="testinBig",
-        user="postgres",
-        password="8776959",
-        host="localhost"
-    )
+            dbname="bigdata",
+            user="postgres",
+            password="postgres",
+            host="postgres"
+        )
         
     cur = conn.cursor()
 

@@ -2,6 +2,7 @@ import psycopg2
 import requests
 from bs4 import BeautifulSoup
 import csv
+import os
 from datetime import datetime
 import re
 
@@ -125,17 +126,18 @@ def write_to_csv(news_data, csv_filename):
 
 def save_article(news_data):
     
-    conn = psycopg2.connect(
-        dbname="testinBig",
-        user="postgres",
-        password="8776959",
-        host="localhost"
-    )
+    try:
+        conn = psycopg2.connect(
+            dbname=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASS"),
+            host=os.getenv("DB_HOST")
+        )
         
-    cur = conn.cursor()
+        cur = conn.cursor()
 
-    # Crear la tabla noticias si no existe
-    create_table_query = '''
+        # Crear la tabla noticias si no existe
+        create_table_query = '''
         CREATE TABLE IF NOT EXISTS noticias (
             id SERIAL PRIMARY KEY,
             title TEXT NOT NULL,
@@ -149,32 +151,38 @@ def save_article(news_data):
 
         );
         '''
-    cur.execute(create_table_query)
-    conn.commit()
+        cur.execute(create_table_query)
+        conn.commit()
         
-    insert_query = '''
-        INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section, revistas)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        '''
-    for news in news_data:
-        cur.execute(insert_query, (
-            news['title'],
-            news['description'],
-            news['image_url'],
-            news['article_url'],
-            news['author_name'],
-            news['content_time'],
-            news['section'],
-            'Los Tiempos' 
-        ))
-    conn.commit()
-    print("Conexión exitosa")
+        insert_query = '''
+            INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section, revistas)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            '''
+        for news in news_data:
+            cur.execute(insert_query, (
+                news['title'],
+                news['description'],
+                news['image_url'],
+                news['article_url'],
+                news['author_name'],
+                news['content_time'],
+                news['section'],
+                'Los Tiempos' 
+            ))
+        conn.commit()
+        print("Conexión exitosa")
         
         
-    cur.close()
-    conn.close()
+        cur.close()
+        conn.close()
+    except psycopg2.OperationalError as e:
+        print(f"Error al conectar a la base de datos: {e}")
     
     
+    
+    
+
+
 #inicio de scraping
 scrape_news(url_website, 'los_tiempos_news_1.csv')
 

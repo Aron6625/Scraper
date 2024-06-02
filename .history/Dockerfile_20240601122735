@@ -1,0 +1,15 @@
+# Usa una imagen base de Python
+FROM python:3.9
+
+# Establece el directorio de trabajo en el contenedor
+WORKDIR /app
+
+# Copia el archivo requirements.txt y luego instala las dependencias
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+
+# Copia el contenido del directorio actual en el directorio de trabajo en el contenedor
+COPY . .
+
+# Comando para ejecutar tu script
+CMD ["python", "los_tiempos.py"]

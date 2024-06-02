@@ -5,6 +5,37 @@ import csv
 from datetime import datetime
 import re
 
+try:
+    conn = psycopg2.connect(
+        dbname="postgres",
+        user="postgres",
+        password="postgres",
+        host="postgres"
+    )
+    print("Conexión exitosa")
+except psycopg2.OperationalError as e:
+    print(f"Error al conectar a la base de datos: {e}")
+cur = conn.cursor()
+
+
+# Crear la tabla noticias si no existe
+create_table_query = '''
+CREATE TABLE IF NOT EXISTS noticias (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    article_url TEXT NOT NULL,
+    author_name TEXT,
+    content_time DATE,
+    section TEXT NOT NULL
+    revistas VARCHAR(255)
+
+);
+'''
+cur.execute(create_table_query)
+conn.commit()
+
 url_website = "https://www.lostiempos.com/ultimas-noticias"
 
 def get_page_content(url):
@@ -124,38 +155,10 @@ def write_to_csv(news_data, csv_filename):
             writer.writerow(news)
 
 def save_article(news_data):
-    
-    conn = psycopg2.connect(
-        dbname="testinBig",
-        user="postgres",
-        password="8776959",
-        host="localhost"
-    )
-        
-    cur = conn.cursor()
-
-    # Crear la tabla noticias si no existe
-    create_table_query = '''
-        CREATE TABLE IF NOT EXISTS noticias (
-            id SERIAL PRIMARY KEY,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            image_url TEXT NOT NULL,
-            article_url TEXT NOT NULL,
-            author_name TEXT,
-            content_time DATE,
-            section TEXT NOT NULL
-            revistas VARCHAR(255)
-
-        );
-        '''
-    cur.execute(create_table_query)
-    conn.commit()
-        
     insert_query = '''
-        INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section, revistas)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        '''
+    INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section, revistas)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    '''
     for news in news_data:
         cur.execute(insert_query, (
             news['title'],
@@ -168,14 +171,10 @@ def save_article(news_data):
             'Los Tiempos' 
         ))
     conn.commit()
-    print("Conexión exitosa")
-        
-        
-    cur.close()
-    conn.close()
-    
-    
+
+
 #inicio de scraping
 scrape_news(url_website, 'los_tiempos_news_1.csv')
 
-
+cur.close()
+conn.close()
