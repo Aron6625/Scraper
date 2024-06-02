@@ -1,5 +1,5 @@
 import time
-import sqlite3
+import csv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.service import Service
@@ -42,8 +42,8 @@ def convertir_fecha(fecha_str):
         print(f"Error al convertir la fecha: {e}")
         return ""
 
-# Función para capturar y guardar los datos en la base de datos
-def capture_and_save_data(driver, section, cursor, conn):
+# Función para capturar y guardar los datos en un archivo CSV
+def capture_and_save_data(driver, section, csv_writer):
     wait = WebDriverWait(driver, 10)
     
     for page_num in range(1, 31):  # Paginación hasta la página 30
@@ -66,7 +66,7 @@ def capture_and_save_data(driver, section, cursor, conn):
                 description = description_element.text
                 
                 image_element = article.find_element(By.CSS_SELECTOR, ".article-media img")
-                image_url = image_element.getAttribute("data-src")
+                image_url = image_element.get_attribute("data-src")
                 
                 # Hacer clic en el título para navegar a la página del artículo
                 driver.execute_script("arguments[0].click();", title_element)
@@ -100,12 +100,8 @@ def capture_and_save_data(driver, section, cursor, conn):
                 print("Section:", section)
                 print("-----------")
                 
-                # Insertar los datos en la base de datos
-                cursor.execute("""
-                    INSERT INTO articles (title, description, image_url, article_url, author_name, content_date, section, revista)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (title, description, image_url, article_url, author_name, content_date, section, "opinion"))
-                conn.commit()
+                # Escribir los datos en el archivo CSV
+                csv_writer.writerow([title, description, image_url, article_url, author_name, content_date, section, "opinion"])
                 
                 # Volver a la página de la sección original
                 driver.back()
@@ -123,26 +119,6 @@ def capture_and_save_data(driver, section, cursor, conn):
         except NoSuchElementException:
             break  # Salir del bucle si no hay más páginas
 
-# Conectar a la base de datos SQLite
-conn = sqlite3.connect('noticias.db')
-cursor = conn.cursor()
-
-# Crear la tabla si no existe
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS articles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        description TEXT,
-        image_url TEXT,
-        article_url TEXT,
-        author_name TEXT,
-        content_date TEXT,
-        section TEXT,
-        revista TEXT
-    )
-""")
-conn.commit()
-
 # Lista de secciones para extraer datos
 sections = [
     ("Cochabamba", "https://www.opinion.com.bo/blog/section/cochabamba/"),
@@ -150,12 +126,14 @@ sections = [
     ("Mundo", "https://www.opinion.com.bo/blog/section/mundo/")
 ]
 
-# Ejecutar la función para capturar y guardar datos para cada sección
-for section_name, uri in sections:
-    print(f"Extracting data for section: {section_name}")
-    driver = config(uri)
-    capture_and_save_data(driver, section_name, cursor, conn)
-    driver.quit()
-
-# Cerrar la conexión a la base de datos
-conn.close()
+# Crear el archivo CSV y escribir los encabezados
+with open('noticias.csv', mode='w', newline='', encoding='utf-8') as file:
+    csv_writer = csv.writer(file)
+    csv_writer.writerow(['Title', 'Description', 'Image URL', 'Article URL', 'Author Name', 'Content Date', 'Section', 'Revista'])
+    
+    # Ejecutar la función para capturar y guardar datos para cada sección
+    for section_name, uri in sections:
+        print(f"Extracting data for section: {section_name}")
+        driver = config(uri)
+        capture_and_save_data(driver, section_name, csv_writer)
+        driver.quit()
