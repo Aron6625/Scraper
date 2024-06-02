@@ -17,9 +17,9 @@ options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe'
 
 # Conexión a la base de datos PostgreSQL
 conn = psycopg2.connect(
-    dbname="testinBig",
+    dbname="noticias",
     user="postgres",
-    password="8776959",
+    password="34353435",
     host="localhost"
 )
 
@@ -49,6 +49,7 @@ def config(uri):
     driver.get(uri)
     return driver
 
+# Función para capturar y guardar los datos en PostgreSQL
 # Función para capturar y guardar los datos en PostgreSQL
 def capture_and_save_data(driver, section):
     wait = WebDriverWait(driver, 10)
@@ -87,7 +88,7 @@ def capture_and_save_data(driver, section):
                 except:
                     author_name = ""
                 
-                try:
+                try:    
                     content_time = driver.find_element(By.CSS_SELECTOR, ".content-time").text
                 except:
                     content_time = ""
@@ -114,6 +115,7 @@ def capture_and_save_data(driver, section):
                         'INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section) VALUES (%s, %s, %s, %s, %s, %s, %s)',
                         (title, description, image_url, article_url, author_name, content_time, section)
                     )
+                    conn.commit()  # Commit de la transacción después de la inserción
                 
                 # Volver a la página de la sección original
                 driver.back()
@@ -122,7 +124,9 @@ def capture_and_save_data(driver, section):
                 wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".onm-new.content.image-top-left")))
             except StaleElementReferenceException:
                 continue  # Si se produce la excepción, intenta nuevamente buscar los elementos
-        
+            except Exception as e:
+                print("Error durante la inserción:", e)  # Imprimir cualquier error que ocurra durante la inserción
+
         # Navegar a la siguiente página
         try:
             next_button = driver.find_element(By.CSS_SELECTOR, f".pagination li a[href*='page={page_num + 1}']")
@@ -131,9 +135,7 @@ def capture_and_save_data(driver, section):
         except:
             break  # Salir del bucle si no hay más páginas
 
-    conn.commit()
-
-# Lista de secciones para extraer datos
+# Definir la lista de secciones
 sections = [
     ("Cochabamba", "https://www.opinion.com.bo/blog/section/cochabamba/"),
     ("País", "https://www.opinion.com.bo/blog/section/pais/"),
@@ -150,3 +152,4 @@ for section_name, uri in sections:
 # Cerrar la conexión a la base de datos
 cursor.close()
 conn.close()
+
