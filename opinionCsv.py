@@ -1,5 +1,5 @@
 import time
-import sqlite3
+import psycopg2
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.service import Service
@@ -65,8 +65,13 @@ def capture_and_save_data(driver, section, cursor, conn):
                 description_element = article.find_element(By.CSS_SELECTOR, ".summary")
                 description = description_element.text
                 
-                image_element = article.find_element(By.CSS_SELECTOR, ".article-media img")
-                image_url = image_element.getAttribute("data-src")
+                # image_element = article.find_element(By.CSS_SELECTOR, ".article-media img")
+                # image_url = image_element.getAttribute("data-src")
+                try:
+                    image_element = article.find_element(By.CSS_SELECTOR, ".article-media img")
+                    image_url = image_element.get_attribute("data-src")
+                except NoSuchElementException:
+                    image_url = ""
                 
                 # Hacer clic en el título para navegar a la página del artículo
                 driver.execute_script("arguments[0].click();", title_element)
@@ -101,10 +106,13 @@ def capture_and_save_data(driver, section, cursor, conn):
                 print("-----------")
                 
                 # Insertar los datos en la base de datos
-                cursor.execute("""
-                    INSERT INTO articles (title, description, image_url, article_url, author_name, content_date, section, revista)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (title, description, image_url, article_url, author_name, content_date, section, "opinion"))
+                cursor.execute(
+                    '''
+                        INSERT INTO articles (title, description, image_url, article_url, author_name, content_date, section, revista)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ''',
+                    (title, description, image_url, article_url, author_name, content_date, section, 'opinion')
+                )
                 conn.commit()
                 
                 # Volver a la página de la sección original
@@ -124,19 +132,24 @@ def capture_and_save_data(driver, section, cursor, conn):
             break  # Salir del bucle si no hay más páginas
 
 # Conectar a la base de datos SQLite
-conn = sqlite3.connect('noticias.db')
+conn = psycopg2.connect(
+    dbname="noticias",
+    user="postgres",
+    password="34353435",
+    host="localhost"
+)
 cursor = conn.cursor()
 
 # Crear la tabla si no existe
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS articles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         title TEXT,
         description TEXT,
         image_url TEXT,
         article_url TEXT,
         author_name TEXT,
-        content_date TEXT,
+        content_date DATE,
         section TEXT,
         revista TEXT
     )
