@@ -6,7 +6,7 @@ from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
-from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException, NoSuchElementException
 
 # Ruta al geckodriver
 drive_path = r'D:\\geckodriver.exe'
@@ -73,29 +73,47 @@ def config(uri):
 def capture_and_save_data(driver, section):
     wait = WebDriverWait(driver, 10)
     
-    for page_num in range(1, 50):  # Paginación hasta la página 10
-        # Esperar a que los artículos estén presentes
-        wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".onm-new.content.image-top-left")))
+    for page_num in range(1, 51):  # Paginación hasta la página 50
+        try:
+            # Esperar a que los artículos estén presentes
+            wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".onm-new.content.image-top-left")))
+        except TimeoutException:
+            print(f"No se encontraron artículos en la página {page_num} de la sección {section}")
+            break
         
         articles = driver.find_elements(By.CSS_SELECTOR, ".onm-new.content.image-top-left")
         
         for i in range(len(articles)):
-            # Re-localizar los artículos en el DOM
-            articles = driver.find_elements(By.CSS_SELECTOR, ".onm-new.content.image-top-left")
-            article = articles[i]
-
             try:
-                title_element = article.find_element(By.CSS_SELECTOR, ".title.title-article a")
-                title = title_element.text
-                article_url = title_element.get_attribute("href")
+                # Re-localizar los artículos en el DOM para evitar StaleElementReferenceException
+                articles = driver.find_elements(By.CSS_SELECTOR, ".onm-new.content.image-top-left")
+                if i >= len(articles):
+                    break  # Asegurarse de que el índice no esté fuera de rango
+                article = articles[i]
+
+                try:
+                    title_element = article.find_element(By.CSS_SELECTOR, ".title.title-article a")
+                    title = title_element.text
+                    article_url = title_element.get_attribute("href")
+                except NoSuchElementException:
+                    print("No se encontró el título del artículo.")
+                    continue
                 
-                description_element = article.find_element(By.CSS_SELECTOR, ".summary")
-                description = description_element.text
+                try:
+                    description_element = article.find_element(By.CSS_SELECTOR, ".summary")
+                    description = description_element.text
+                except NoSuchElementException:
+                    print("No se encontró la descripción del artículo.")
+                    continue
                 
-                image_element = article.find_element(By.CSS_SELECTOR, ".article-media img")
-                image_url = image_element.get_attribute("data-src")
-                if not image_url.startswith("http"):
-                    image_url = "https://www.opinion.com.bo" + image_url
+                try:
+                    image_element = article.find_element(By.CSS_SELECTOR, ".article-media img")
+                    image_url = image_element.get_attribute("data-src")
+                    if not image_url.startswith("http"):
+                        image_url = "https://www.opinion.com.bo" + image_url
+                except NoSuchElementException:
+                    print("No se encontró la imagen del artículo.")
+                    continue
                 
                 # Hacer clic en el título para navegar a la página del artículo
                 driver.execute_script("arguments[0].click();", title_element)
@@ -143,7 +161,8 @@ def capture_and_save_data(driver, section):
                 
                 # Esperar a que los artículos estén nuevamente presentes
                 wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".onm-new.content.image-top-left")))
-            except StaleElementReferenceException:
+            except (StaleElementReferenceException, TimeoutException, NoSuchElementException) as e:
+                print(f"Error al procesar el artículo: {e}")
                 continue  # Si se produce la excepción, intenta nuevamente buscar los elementos
         
         # Navegar a la siguiente página
@@ -151,7 +170,7 @@ def capture_and_save_data(driver, section):
             next_button = driver.find_element(By.CSS_SELECTOR, f".pagination li a[href*='page={page_num + 1}']")
             driver.execute_script("arguments[0].click();", next_button)
             time.sleep(2)  # Esperar un momento para que la página se cargue
-        except:
+        except NoSuchElementException:
             break  # Salir del bucle si no hay más páginas
 
     conn.commit()
