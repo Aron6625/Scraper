@@ -6,8 +6,7 @@ from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
-from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, TimeoutException
-from datetime import datetime
+from selenium.common.exceptions import StaleElementReferenceException
 
 # Ruta al geckodriver
 drive_path = r'D:\\geckodriver.exe'
@@ -16,12 +15,33 @@ drive_path = r'D:\\geckodriver.exe'
 options = Options()
 options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe'
 
-# Función para configurar y obtener el navegador
-def config(uri):
-    service = Service(executable_path=drive_path)
-    driver = webdriver.Firefox(service=service, options=options)
-    driver.get(uri)
-    return driver
+# Conexión a la base de datos PostgreSQL
+conn = psycopg2.connect(
+    dbname="testinBig",
+    user="postgres",
+    password="8776959",
+    host="localhost"
+)
+
+# Crear un cursor
+cursor = conn.cursor()
+
+# Crear la tabla noticias si no existe
+create_table_query = '''
+CREATE TABLE IF NOT EXISTS noticias (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    article_url TEXT NOT NULL,
+    author_name TEXT,
+    content_time DATE,
+    section TEXT NOT NULL,
+    revista TEXT NOT NULL
+);
+'''
+cursor.execute(create_table_query)
+conn.commit()
 
 # Función para convertir la fecha al formato YYYY-MM-DD
 def convertir_fecha(fecha_str):
@@ -42,11 +62,18 @@ def convertir_fecha(fecha_str):
         print(f"Error al convertir la fecha: {e}")
         return ""
 
-# Función para capturar y guardar los datos en la base de datos
-def capture_and_save_data(driver, section, cursor, conn):
+# Función para configurar y obtener el navegador
+def config(uri):
+    service = Service(executable_path=drive_path)
+    driver = webdriver.Firefox(service=service, options=options)
+    driver.get(uri)
+    return driver
+
+# Función para capturar y guardar los datos en PostgreSQL
+def capture_and_save_data(driver, section):
     wait = WebDriverWait(driver, 10)
     
-    for page_num in range(1, 31):  # Paginación hasta la página 30
+    for page_num in range(1, 50):  # Paginación hasta la página 10
         # Esperar a que los artículos estén presentes
         wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".onm-new.content.image-top-left")))
         
@@ -67,45 +94,49 @@ def capture_and_save_data(driver, section, cursor, conn):
                 
                 image_element = article.find_element(By.CSS_SELECTOR, ".article-media img")
                 image_url = image_element.get_attribute("data-src")
+                if not image_url.startswith("http"):
+                    image_url = "https://www.opinion.com.bo" + image_url
                 
                 # Hacer clic en el título para navegar a la página del artículo
                 driver.execute_script("arguments[0].click();", title_element)
                 
                 # Esperar a que se cargue la página del artículo
-                try:
-                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "article.content-cochabamba, article.content-pais, article.content-mundo")))
-                except TimeoutException:
-                    print("TimeoutException: No se pudo cargar la página del artículo.")
-                    driver.back()
-                    continue
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "article.content-cochabamba, article.content-pais, article.content-mundo")))
                 
                 # Capturar detalles adicionales del artículo
                 try:
                     author_name = driver.find_element(By.CSS_SELECTOR, ".author-name").text
-                except NoSuchElementException:
+                except:
                     author_name = ""
                 
                 try:
                     content_time = driver.find_element(By.CSS_SELECTOR, ".content-time").text
-                    content_date = convertir_fecha(content_time)
-                except NoSuchElementException:
-                    content_date = ""
+                    content_time = convertir_fecha(content_time)
+                except:
+                    content_time = ""
                 
                 print("Title:", title)
                 print("Article URL:", article_url)
                 print("Description:", description)
                 print("Image URL:", image_url)
                 print("Author Name:", author_name)
-                print("Content Date:", content_date)
+                print("Content Time:", content_time)
                 print("Section:", section)
                 print("-----------")
                 
-                # Insertar los datos en la base de datos
-                cursor.execute("""
-                    INSERT INTO articles (title, description, image_url, article_url, author_name, content_date, section, revista)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (title, description, image_url, article_url, author_name, content_date, section, "opinion"))
-                conn.commit()
+                # Verificar si el registro ya existe en la base de datos
+                cursor.execute(
+                    'SELECT * FROM noticias WHERE title = %s AND description = %s AND image_url = %s AND article_url = %s',
+                    (title, description, image_url, article_url)
+                )
+                existing_record = cursor.fetchone()
+                
+                if not existing_record:
+                    # Insertar el nuevo registro solo si no existe en la base de datos
+                    cursor.execute(
+                        'INSERT INTO noticias (title, description, image_url, article_url, author_name, content_time, section, revista) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
+                        (title, description, image_url, article_url, author_name, content_time, section, "opinion")
+                    )
                 
                 # Volver a la página de la sección original
                 driver.back()
@@ -120,33 +151,10 @@ def capture_and_save_data(driver, section, cursor, conn):
             next_button = driver.find_element(By.CSS_SELECTOR, f".pagination li a[href*='page={page_num + 1}']")
             driver.execute_script("arguments[0].click();", next_button)
             time.sleep(2)  # Esperar un momento para que la página se cargue
-        except NoSuchElementException:
+        except:
             break  # Salir del bucle si no hay más páginas
 
-# Conectar a la base de datos PostgreSQL
-conn = psycopg2.connect(
-    dbname="testinBig",
-    user="postgres",
-    password="8776959",
-    host="localhost"
-)
-cursor = conn.cursor()
-
-# Crear la tabla si no existe
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS articles (
-        id SERIAL PRIMARY KEY,
-        title TEXT,
-        description TEXT,
-        image_url TEXT,
-        article_url TEXT,
-        author_name TEXT,
-        content_date DATE,
-        section TEXT,
-        revista TEXT
-    )
-""")
-conn.commit()
+    conn.commit()
 
 # Lista de secciones para extraer datos
 sections = [
@@ -159,8 +167,9 @@ sections = [
 for section_name, uri in sections:
     print(f"Extracting data for section: {section_name}")
     driver = config(uri)
-    capture_and_save_data(driver, section_name, cursor, conn)
+    capture_and_save_data(driver, section_name)
     driver.quit()
 
 # Cerrar la conexión a la base de datos
+cursor.close()
 conn.close()
