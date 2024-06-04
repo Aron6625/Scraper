@@ -86,7 +86,7 @@ def find_uri_page(soup, classname):
     else:
         return None
 
-def scrape_news(start_date, end_date, filename):
+def scrape_news(start_date, end_date, csv_filename):
     urls = generate_urls(start_date, end_date)
     all_news = []
     i=0
@@ -105,8 +105,7 @@ def scrape_news(start_date, end_date, filename):
                 news = extract_news(f'https://www.lostiempos.com{uri_news}')
                 all_news.extend(news)
                 
-        write_to_csv(all_news, filename+f"{i}.csv")
-        write_to_json(all_news, filename+f"{i}.json")
+        write_to_csv(all_news, csv_filename+f"{i}")
         # save_article(all_news)
         all_news.clear()
 
@@ -185,4 +184,4 @@ def save_article(news_data):
     conn.close()
 
 # Inicio del scraping
-scrape_news("06/01/2024", "06/03/2024", 'los_tiempos_news')
+scrape_news("06/01/2024", "06/03/2024", 'los_tiempos_news.csv')

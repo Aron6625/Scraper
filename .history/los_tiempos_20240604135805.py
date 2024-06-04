@@ -86,7 +86,7 @@ def find_uri_page(soup, classname):
     else:
         return None
 
-def scrape_news(start_date, end_date, filename):
+def scrape_news(start_date, end_date, csv_filename):
     urls = generate_urls(start_date, end_date)
     all_news = []
     i=0
@@ -105,8 +105,7 @@ def scrape_news(start_date, end_date, filename):
                 news = extract_news(f'https://www.lostiempos.com{uri_news}')
                 all_news.extend(news)
                 
-        write_to_csv(all_news, filename+f"{i}.csv")
-        write_to_json(all_news, filename+f"{i}.json")
+        write_to_csv(all_news, csv_filename+f"{i}")
         # save_article(all_news)
         all_news.clear()
 
@@ -132,10 +131,6 @@ def write_to_csv(news_data, csv_filename):
         writer.writeheader()
         for news in news_data:
             writer.writerow(news)
-            
-def write_to_json(news_data, json_filename):
-    with open(json_filename, 'a', encoding='utf-8') as jsonfile:  # Changed to 'a' to append to the file
-        jsonfile.write(json.dumps(news_data, default=str, indent=4))
 
 def save_article(news_data):
     conn = psycopg2.connect(
@@ -185,4 +180,4 @@ def save_article(news_data):
     conn.close()
 
 # Inicio del scraping
-scrape_news("06/01/2024", "06/03/2024", 'los_tiempos_news')
+scrape_news("06/01/2024", "06/03/2024", 'los_tiempos_news.csv')
