@@ -46,7 +46,7 @@ def extract_news(uri):
             subsection = article.find('div', class_='subsection').get_text(strip=True)
 
             img_tag = article.find('img', class_='image-style-noticia-detalle')
-            link = img_tag['src'] if img_tag else None
+            link = img_tag['src'] if img_tag else None  # Verificación adicional
 
             date_publish_str = article.find('div', class_='date-publish').get_text(strip=True)
             date_publish = extract_date(date_publish_str)
@@ -111,7 +111,7 @@ def extract_date(date_str):
         date_match = re.search(r'\d{2}/\d{2}/\d{4}', date_str)
         if date_match:
             date_extracted = date_match.group(0)
-            return datetime.strptime(date_extracted, '%d/%m/%Y').date()
+            return datetime.strptime(date_extracted, '%m/%d/%Y').date()
         else:
             print("No se encontró una fecha en la cadena proporcionada.")
             return None

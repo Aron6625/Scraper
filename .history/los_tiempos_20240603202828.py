@@ -1,24 +1,24 @@
-from datetime import datetime, timedelta
+import psycopg2
 import requests
 from bs4 import BeautifulSoup
 import csv
-import psycopg2
+from datetime import datetime, timedelta
 import re
 
-def generate_urls(start_date, end_date, section='All'):
-    start_date = datetime.strptime(start_date, "%m/%d/%Y")
-    end_date = datetime.strptime(end_date, "%m/%d/%Y")
-    delta = timedelta(days=1)
-    urls = []
+# Función para generar enlaces por fecha
+def generar_enlaces(desde_fecha, hasta_fecha):
+    base_url = "https://www.lostiempos.com/hemeroteca-fecha?fecha={fecha}&seccion=All"
+    fecha_actual = datetime.strptime(desde_fecha, "%d/%m/%Y")
+    fecha_final = datetime.strptime(hasta_fecha, "%d/%m/%Y")
+    enlaces = []
 
-    current_date = start_date
-    while current_date <= end_date:
-        date_str_url = current_date.strftime("%m%%2F%d%%2F%Y")
-        url = f"https://www.lostiempos.com/hemeroteca-fecha?fecha={date_str_url}&seccion={section}"
-        urls.append(url)
-        current_date += delta
-
-    return urls
+    while fecha_actual <= fecha_final:
+        fecha_formateada = fecha_actual.strftime("%d/%m/%Y")
+        enlace = base_url.format(fecha=fecha_formateada)
+        enlaces.append(enlace)
+        fecha_actual += timedelta(days=1)
+    
+    return enlaces
 
 def get_page_content(url):
     response = requests.get(url)
@@ -44,10 +44,7 @@ def extract_news(uri):
 
             title = article.find('h1', class_='node-title').get_text(strip=True)
             subsection = article.find('div', class_='subsection').get_text(strip=True)
-
-            img_tag = article.find('img', class_='image-style-noticia-detalle')
-            link = img_tag['src'] if img_tag else None
-
+            link = article.find('img', class_='image-style-noticia-detalle')['src']
             date_publish_str = article.find('div', class_='date-publish').get_text(strip=True)
             date_publish = extract_date(date_publish_str)
             
@@ -60,7 +57,6 @@ def extract_news(uri):
             for p in content.find_all('p', class_='rtejustify'):
                 description += '\n' + ''.join(p.get_text(strip=True))
             
-            print("Página escrapeada correctamente!")
             news.append({
                 'title': title,
                 'description': description,
@@ -72,6 +68,7 @@ def extract_news(uri):
             })
         except AttributeError as e:
             print(f"Error al procesar el contenido de la página: {e}")
+            # Devolver las noticias ya escrapeadas hasta este punto
             return news
     else:
         print("No se pudo obtener el contenido de la página.")
@@ -85,13 +82,13 @@ def find_uri_page(soup, classname):
     else:
         return None
 
-def scrape_news(start_date, end_date, csv_filename):
-    urls = generate_urls(start_date, end_date)
+def scrape_news(desde_fecha, hasta_fecha, csv_filename):
+    enlaces = generar_enlaces(desde_fecha, hasta_fecha)
     all_news = []
 
-    for current_url in urls:
-        print(f"Scraping {current_url}")
-        soup = get_page_content(current_url)
+    for enlace in enlaces:
+        print(f"Scraping {enlace}")
+        soup = get_page_content(enlace)
         if not soup:
             continue
         
@@ -99,10 +96,9 @@ def scrape_news(start_date, end_date, csv_filename):
         articles = view_content.find_all('div', class_='views-row')
         for article in articles:
             uri_news = find_uri_page(article, '.field-content')
-            if uri_news:
-                news = extract_news(f'https://www.lostiempos.com{uri_news}')
-                all_news.extend(news)
-
+            news = extract_news(f'https://www.lostiempos.com{uri_news}')
+            all_news.extend(news)
+            
     write_to_csv(all_news, csv_filename)
     save_article(all_news)
 
@@ -120,7 +116,7 @@ def extract_date(date_str):
         return None
     
 def write_to_csv(news_data, csv_filename):
-    fieldnames = ['title', 'section', 'image_url', 'article_url', 'content_time', 'author_name', 'description']
+    fieldnames = ['title', 'section', 'image_url','article_url', 'content_time', 'author_name', 'description']
 
     with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -129,6 +125,7 @@ def write_to_csv(news_data, csv_filename):
             writer.writerow(news)
 
 def save_article(news_data):
+    
     conn = psycopg2.connect(
         dbname="testinBig",
         user="postgres",
@@ -138,6 +135,7 @@ def save_article(news_data):
         
     cur = conn.cursor()
 
+    # Crear la tabla noticias si no existe
     create_table_query = '''
         CREATE TABLE IF NOT EXISTS noticias (
             id SERIAL PRIMARY KEY,
@@ -167,7 +165,7 @@ def save_article(news_data):
             news['author_name'],
             news['content_time'],
             news['section'],
-            'Los Tiempos'
+            'Los Tiempos' 
         ))
     conn.commit()
     print("Conexión exitosa")
@@ -175,5 +173,9 @@ def save_article(news_data):
     cur.close()
     conn.close()
 
-# Inicio del scraping
-scrape_news("06/01/2023", "06/03/2024", 'los_tiempos_news.csv')
+# Definir las fechas
+desde_fecha = "01/06/2023"
+hasta_fecha = datetime.now().strftime("%d/%m/%Y")
+
+# Iniciar scraping
+scrape_news(desde_fecha, hasta_fecha, 'los_tiempos_news.csv')
