@@ -21,12 +21,23 @@ def generate_urls(start_date, end_date, section='All'):
 
     return urls
 
-def get_page_content(url):
-    response = requests.get(url)
-    if response.status_code == 200:
+def get_page_content(url, timeout=30):
+    try:
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
         return BeautifulSoup(response.content, "html5lib")
-    else:
-        return None
+    except requests.exceptions.Timeout:
+        print(f"Request to {url} timed out.")
+    except requests.exceptions.RequestException as e:
+        print(f"Error during requests to {url}: {str(e)}")
+
+
+# def get_page_content(url):
+#     response = requests.get(url)
+#     if response.status_code == 200:
+#         return BeautifulSoup(response.content, "html5lib")
+#     else:
+#         return None
 
 def extract_news(uri):
     news = []
@@ -57,9 +68,13 @@ def extract_news(uri):
 
             body = article.find('div', class_='body')
             content = body.find('div', class_='field-items')
-            description = ''
-            for p in content.find_all('p', class_='rtejustify'):
-                description += '\n' + ''.join(p.get_text(strip=True))
+            arreglo = content.find_all('p')
+            if arreglo:
+                description = arreglo[0].get_text(strip=True)
+            else:
+                description = "Descripción no disponible."
+            # for p in content.find_all('p', class_='rtejustify'):
+            #     description += '\n' + ''.join(p.get_text(strip=True))
             
             print("Página escrapeada correctamente!")
             news.append({
@@ -86,7 +101,7 @@ def find_uri_page(soup, classname):
     else:
         return None
 
-def scrape_news(start_date, end_date, filename):
+def scrape_news(start_date, end_date):
     urls = generate_urls(start_date, end_date)
     all_news = []
     i=0
@@ -105,9 +120,9 @@ def scrape_news(start_date, end_date, filename):
                 news = extract_news(f'https://www.lostiempos.com{uri_news}')
                 all_news.extend(news)
                 
-        write_to_csv(all_news, filename+f"{i}.csv")
-        write_to_json(all_news, filename+f"{i}.json")
-        # save_article(all_news)
+        # write_to_csv(all_news, filename+f"{i}.csv")
+        # write_to_json(all_news, filename+f"{i}.json")
+        save_article(all_news)
         all_news.clear()
 
 
@@ -125,7 +140,7 @@ def extract_date(date_str):
         return None
     
 def write_to_csv(news_data, csv_filename):
-    fieldnames = ['title', 'section', 'image_url', 'article_url', 'content_time', 'author_name', 'description']
+    fieldnames = ['title','description', 'image_url', 'article_url', 'content_time', 'author_name', 'section' ]
 
     with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -139,10 +154,11 @@ def write_to_json(news_data, json_filename):
 
 def save_article(news_data):
     conn = psycopg2.connect(
-        dbname="testinBig",
-        user="postgres",
-        password="8776959",
-        host="localhost"
+        dbname="",
+        user="",
+        password="",
+        host="",
+        port=""
     )
         
     cur = conn.cursor()
@@ -185,4 +201,5 @@ def save_article(news_data):
     conn.close()
 
 # Inicio del scraping
-scrape_news("06/01/2024", "06/03/2024", 'los_tiempos_news')
+scrape_news("06/01/2024", "06/03/2024")
+
